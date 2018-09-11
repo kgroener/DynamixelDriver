@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Net.Http;
+﻿using DynamixelDriver.Serial;
+using System;
+using System.Threading.Tasks;
 using Windows.ApplicationModel.Background;
+using Windows.Devices.Gpio;
 
 // The Background Application template is documented at http://go.microsoft.com/fwlink/?LinkID=533884&clcid=0x409
 
@@ -11,15 +10,29 @@ namespace DynamixelDriver
 {
     public sealed class StartupTask : IBackgroundTask
     {
-        public void Run(IBackgroundTaskInstance taskInstance)
+        private const int DEFAULT_DYNAMIXEL_BAUDRATE = 57600;
+
+        public async void Run(IBackgroundTaskInstance taskInstance)
         {
-            // 
-            // TODO: Insert code to perform background work
-            //
-            // If you start any asynchronous methods here, prevent the task
-            // from closing prematurely by using BackgroundTaskDeferral as
-            // described in http://aka.ms/backgroundtaskdeferral
-            //
+            var deferral = taskInstance.GetDeferral();
+
+            await RunAsync().ContinueWith((t) => deferral.Complete());
+        }
+
+        private async Task RunAsync()
+        {
+            var uartDevice = await UARTDevice.GetUARTDeviceAsync();
+            var gpioController = await GpioController.GetDefaultAsync();
+            var directionPin = gpioController.OpenPin(27); // GPIO27 (pin #13)
+            var halfDuplexUARTDevice = new HalfDuplexSerialDevice(uartDevice, directionPin, GpioPinValue.High, GpioPinValue.Low);
+
+            halfDuplexUARTDevice.Initialize(DEFAULT_DYNAMIXEL_BAUDRATE);
+
+            while (true)
+            {
+                await Task.Delay(1000);
+                await halfDuplexUARTDevice.WriteBytesAsync(new byte[] { 255, 128, 0 });
+            }
         }
     }
 }
